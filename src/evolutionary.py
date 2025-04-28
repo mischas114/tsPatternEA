@@ -10,9 +10,17 @@ def mutate(features, mutation_rate=0.1):
             mutated[i, idx] += np.random.choice([-1, 1])
     return mutated
 
-# Simple crossover: swap parts between two feature sets
+# Simple crossover: swap parts between two feature vectors (per row basis)
 def crossover(parent1, parent2):
+    parent1 = parent1.copy()
+    parent2 = parent2.copy()
+    
+    if parent1.ndim == 2:
+        parent1 = parent1.squeeze(0)
+    if parent2.ndim == 2:
+        parent2 = parent2.squeeze(0)
+
     point = np.random.randint(1, parent1.shape[0] - 1)
-    child1 = np.vstack((parent1[:point], parent2[point:]))
-    child2 = np.vstack((parent2[:point], parent1[point:]))
+    child1 = np.concatenate((parent1[:point], parent2[point:]))
+    child2 = np.concatenate((parent2[:point], parent1[point:]))
     return child1, child2
