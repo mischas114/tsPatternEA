@@ -10,7 +10,7 @@ def load_ecg_data(path, drop_labels=True):
         data = df.iloc[:, 1:].values  # first column is numbers
     else:
         data = df.values
-    return data.squeeze()  # convert to 1D array
+    return data.flatten()  # convert to 1D array properly
 
 # Standardize signal to zero mean and unit variance
 def normalize(signal):
