@@ -52,7 +52,11 @@ def plot_features(features, labels, save_path=None):
     plt.figure(figsize=(12, 6))
     for i, feature in enumerate(features.T):
         plt.subplot(2, 2, i + 1)
-        plt.scatter(range(len(feature)), feature, c=labels, cmap='viridis', label='Feature {}'.format(i + 1))
+        colour_ids = np.arange(len(labels)) #diffrent colours for each label
+        unique = {lab: idx for idx, lab in enumerate(sorted(set(labels)))}
+        colour_ids = [unique[lab] for lab in labels]     # all-different colours # Map each string label to an integer colour ID
+        # If you prefer one colour for every label, use np.zeros_like(labels, dtype=int)
+        plt.scatter(range(len(feature)), feature, c=colour_ids, cmap='viridis', label=f'Feature {i + 1}')
         plt.title('Feature {}'.format(i + 1))
         plt.xlabel('Segment Index')
         plt.ylabel('Value')

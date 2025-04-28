@@ -3,14 +3,22 @@ import pandas as pd
 import numpy as np
 from scipy.signal import find_peaks
 
-# Load ECG data from CSV file
-def load_ecg_data(path, drop_labels=True):
+# AFTER ─ keep every beat as its own vector
+def load_ecg_data(path, drop_labels=True, beat_index=None):
+    """
+    Returns
+    -------
+    traces : np.ndarray
+        • shape (n_beats, n_samples) if beat_index is None  
+        • shape (n_samples,)         if beat_index is int
+    """
     df = pd.read_csv(path, header=None)
-    if drop_labels:
-        data = df.iloc[:, 1:].values  # first column is numbers
-    else:
-        data = df.values
-    return data.flatten()  # convert to 1D array properly
+    data = df.iloc[:, 1:].values if drop_labels else df.values          # (N,140)
+
+    if beat_index is None:                     # all beats
+        return data.astype(float)
+
+    return data[beat_index].astype(float)      # one beat
 
 # Standardize signal to zero mean and unit variance
 def normalize(signal):
