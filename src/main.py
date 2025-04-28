@@ -1,12 +1,9 @@
 # Entry point to run preprocessing, segmentation, or full EA pipeline
-import os
 
 import numpy as np
 from preprocessing import load_ecg_data, normalize, smooth, detect_peaks
 from segmentation import segment_ecg
 from utils import plot_signal_with_peaks, plot_segments, plot_features, save_features_to_csv
-# Entry point to run preprocessing, segmentation, discretization, and EA pipeline
-
 import os
 from preprocessing import load_ecg_data, normalize, smooth, detect_peaks
 from segmentation import segment_ecg
@@ -51,17 +48,20 @@ def main():
     print("Saving features and labels...")
     save_features_to_csv(features, labels, file_path=os.path.join(output_dir, "features.csv"))
 
-   # Step 9: Apply evolutionary operations
-    print("Applying evolutionary operations...")
+    # Step 8: Discretize features
+    print("Discretizing features...")
+    discretized_features = discretize_features(features, n_bins=5)
+    save_features_to_csv(discretized_features, labels, file_path=os.path.join(output_dir, "discretized_features.csv"))
 
-    # Correct mutation
-    mutated_features = mutate(discretize_features, mutation_rate=0.1)
+    # Step 9: Apply evolutionary operations
+    print("Applying evolutionary operations...")
+    mutated_features = mutate(discretized_features, mutation_rate=0.1)
 
     # Crossover sample by sample
     child1_list = []
     child2_list = []
-    for i in range(discretize_features.shape[0]):
-        c1, c2 = crossover(discretize_features[i:i+1, :], mutated_features[i:i+1, :])
+    for i in range(discretized_features.shape[0]):
+        c1, c2 = crossover(discretized_features[i:i+1, :], mutated_features[i:i+1, :])
         child1_list.append(c1.squeeze())
         child2_list.append(c2.squeeze())
 
@@ -73,6 +73,7 @@ def main():
     save_features_to_csv(mutated_features, labels, file_path=os.path.join(output_dir, "mutated_features.csv"))
     save_features_to_csv(child1, labels, file_path=os.path.join(output_dir, "child1_features.csv"))
     save_features_to_csv(child2, labels, file_path=os.path.join(output_dir, "child2_features.csv"))
+
 
 
 if __name__ == "__main__":
