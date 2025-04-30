@@ -1,0 +1,9 @@
+# add /results folder
+/results
+# add .png files
+*.png
+
+# add cache files
+*.cache
+# add .log files
+*.log

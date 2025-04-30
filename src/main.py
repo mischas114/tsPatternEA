@@ -62,15 +62,14 @@ def main() -> None:
     plot_segments(
         signal,
         peaks,
+        labels,
         window_size=70,
         save_path=os.path.join(output_dir, "all_segments.png"),
     )
 
-    # use numeric colour IDs (all‑zero because every segment = "heartbeat")
-    colour_ids = np.zeros(len(labels), dtype=int)
     plot_features(
         features,
-        colour_ids,
+        labels,
         save_path=os.path.join(output_dir, "all_features.png"),
     )
 

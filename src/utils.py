@@ -24,15 +24,18 @@ def plot_signal_with_peaks(signal, peaks, save_path=None):
 # Plot the signal with shaded extracted segments
 # This function highlights the segments around the detected peaks
 # It takes the signal, detected peaks, and a window size to define the segment length.
-def plot_segments(signal, peaks, window_size=50, save_path=None):
+def plot_segments(signal, peaks, labels, window_size=50, save_path=None):
     plt.figure(figsize=(12, 4))
     plt.plot(signal, label='ECG Signal')
 
-    for p in peaks:
+    for p, label in zip(peaks, labels):
         start = p - window_size
         end = p + window_size
         if start >= 0 and end <= len(signal):
-            plt.axvspan(start, end, color='orange', alpha=0.3)  # Shade the segment
+            plt.axvspan(start, end, color='orange', alpha=0.3)
+            # annotate segment center with its letter
+            y_offset = 0.05 * (np.max(signal) - np.min(signal))
+            plt.text(p, signal[p] + y_offset, label, ha='center', va='bottom', color='black')
 
     plt.title('ECG Signal with Segmented Regions')
     plt.xlabel('Sample')
@@ -52,15 +55,15 @@ def plot_features(features, labels, save_path=None):
     plt.figure(figsize=(12, 6))
     for i, feature in enumerate(features.T):
         plt.subplot(2, 2, i + 1)
-        colour_ids = np.arange(len(labels)) #diffrent colours for each label
-        unique = {lab: idx for idx, lab in enumerate(sorted(set(labels)))}
-        colour_ids = [unique[lab] for lab in labels]     # all-different colours # Map each string label to an integer colour ID
-        # If you prefer one colour for every label, use np.zeros_like(labels, dtype=int)
-        plt.scatter(range(len(feature)), feature, c=colour_ids, cmap='viridis', label=f'Feature {i + 1}')
+        plt.scatter(range(len(feature)), feature, c='blue', label=f'Feature {i + 1}')
         plt.title('Feature {}'.format(i + 1))
         plt.xlabel('Segment Index')
         plt.ylabel('Value')
         plt.grid(True)
+        # label each point
+        for idx, val in enumerate(feature):
+            plt.text(idx, val, labels[idx], fontsize=6, ha='center', va='bottom')
+
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path)
