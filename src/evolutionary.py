@@ -31,3 +31,44 @@ def crossover(parent1, parent2):
     child1 = np.concatenate((parent1[:point], parent2[point:]))
     child2 = np.concatenate((parent2[:point], parent1[point:]))
     return child1, child2
+
+def run_evolutionary_segmentation(signal, generations=10, population_size=5):
+    """
+    Example evolutionary approach to learn segmentation indices.
+    """
+    # Initialize random population (each individual is a set of random segment borders)
+    population = []
+    for _ in range(population_size):
+        start = np.random.randint(0, len(signal)//2)
+        end = np.random.randint(len(signal)//2, len(signal))
+        population.append((start, end))
+
+    for gen in range(generations):
+        # Evaluate fitness (dummy: length of segment for demonstration)
+        fitness = [abs(ind[1] - ind[0]) for ind in population]
+        # Select top half
+        selected = [x for _, x in sorted(zip(fitness, population), reverse=True)][: population_size//2]
+
+        # Breed new individuals
+        offspring = []
+        while len(offspring) < population_size - len(selected):
+            p1, p2 = np.random.choice(selected, 2)
+            c1, c2 = crossover(np.array(p1), np.array(p2))
+            offspring.append(tuple(c1))
+            if len(offspring) < population_size - len(selected):
+                offspring.append(tuple(c2))
+
+        # Mutate
+        mutated = []
+        for ind in offspring:
+            arr = np.array(ind)
+            mutated_arr = mutate(arr.reshape(1, -1), mutation_rate=0.5)[0]
+            mutated.append(tuple(mutated_arr))
+
+        # New population
+        population = selected + mutated
+
+    # Return best segmentation
+    final_fitness = [abs(ind[1] - ind[0]) for ind in population]
+    best_ind = population[np.argmax(final_fitness)]
+    return best_ind

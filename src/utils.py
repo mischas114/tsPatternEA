@@ -80,3 +80,47 @@ def save_features_to_csv(features, labels, file_path):
     df = pd.DataFrame(features, columns=[f'Feature_{i+1}' for i in range(features.shape[1])])
     df['Label'] = labels
     df.to_csv(file_path, index=False)
+
+def save_annotation_to_csv(signal, label_array, file_path):
+    """
+    Save annotated signal to CSV: [index, value, label_code].
+    Label codes: {'':0, 'P':1, 'Q':2, 'R':3, 'S':4, 'T':5, 'U':6}
+    """
+    label_map = {'':0, 'P':1, 'Q':2, 'R':3, 'S':4, 'T':5, 'U':6}
+    import csv
+    with open(file_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["Index", "ECG_Value", "Label_Code"])
+        for i, (val, lab) in enumerate(zip(signal, label_array)):
+            writer.writerow([i, val, label_map.get(lab, 0)])
+
+def plot_wave_annotation(signal, label_array, save_path=None):
+    """
+    Overlay wave labels on the ECG signal with distinct colors/markers,
+    vertical lines for reference, and slight y-offsets to prevent overlap.
+    """
+    label_colors = {'P':'blue', 'Q':'green', 'R':'red', 'S':'purple', 'T':'orange', 'U':'brown'}
+    plt.figure(figsize=(12, 4))
+    plt.plot(signal, label='ECG Signal', color='black')
+    offset_scale = 0.02 * (np.max(signal) - np.min(signal))
+
+    for i, lab in enumerate(label_array):
+        if lab:
+            color = label_colors.get(lab, 'gray')
+            y_val = signal[i] + (offset_scale if lab != 'R' else 2*offset_scale)
+            plt.scatter(i, y_val, color=color, marker='o', s=40, zorder=3)
+            plt.axvline(x=i, color=color, linewidth=0.5, linestyle='--', alpha=0.5)
+            plt.text(
+                i, y_val + offset_scale, lab, ha='center', va='bottom',
+                fontsize=8, color=color
+            )
+
+    plt.title("ECG Wave Annotation")
+    plt.xlabel("Sample")
+    plt.ylabel("Amplitude")
+    plt.grid(True)
+    if save_path:
+        plt.savefig(save_path)
+    else:
+        plt.show()
+    plt.close()

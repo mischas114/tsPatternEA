@@ -19,8 +19,8 @@ def extract_segments(signal, peaks, window_size=50):
 # Reuses the same letter for repeated shapes.
 def assign_labels(segments):
     letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    # round to 2 decimals to keep small deviations the same
-    all_keys = [tuple(np.round(seg, 2)) for seg in segments]
+    # First pass: build frequency map
+    all_keys = [tuple(np.round(seg, 3)) for seg in segments]
     counts = {}
     for k in all_keys:
         counts[k] = counts.get(k, 0) + 1
@@ -39,6 +39,41 @@ def assign_labels(segments):
                 next_idx += 1
             labels.append(label_map[k])
     return labels
+
+# Annotate Waves high and low points with labels
+# put P, Q, R, S, T, U, V, W, X, Y, Z on the peaks of the segments
+# if not repeated, use the first sample as a numeric label
+def annotate_waves(signal, peaks):
+    labels = assign_labels(extract_segments(signal, peaks))
+    annotations = {}
+    for p, label in zip(peaks, labels):
+        if 0 <= p < len(signal):
+            annotations[p] = label
+    return annotations
+
+# extract wave features
+# Extracts features from segments around detected peaks (e.g., mean, std, max, min).
+# This function takes the signal, detected peaks, and a window size to define the segment length.
+def extract_wave_features(signal, label_array, half_window=3):
+    """
+    Extract features for each labeled wave. Returns (features, wave_labels)
+    where features[i] correspond to wave wave_labels[i].
+    """
+    features = []
+    wave_labels = []
+    for i, lab in enumerate(label_array):
+        if lab:
+            start = max(i - half_window, 0)
+            end = min(i + half_window + 1, len(signal))
+            window = signal[start:end]
+            if window.size > 0:  # ensure valid window
+                mean = np.mean(window)
+                std = np.std(window)
+                max_val = np.max(window)
+                min_val = np.min(window)
+                features.append([mean, std, max_val, min_val])
+                wave_labels.append(lab)
+    return np.array(features), wave_labels
 
 # Handles extraction of features from segments
 # Extracts simple features (mean, std, max, min) from each segment (for later clustering or EA).
