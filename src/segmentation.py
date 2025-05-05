@@ -19,18 +19,25 @@ def extract_segments(signal, peaks, window_size=50):
 # Reuses the same letter for repeated shapes.
 def assign_labels(segments):
     letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    # round to 2 decimals to keep small deviations the same
+    all_keys = [tuple(np.round(seg, 2)) for seg in segments]
+    counts = {}
+    for k in all_keys:
+        counts[k] = counts.get(k, 0) + 1
+    
     label_map = {}
     labels = []
     next_idx = 0
-
-    for seg in segments:
-        # round to 3 decimals so that tiny float noise doesn’t break identity
-        key = tuple(np.round(seg, 3))
-        if key not in label_map:
-            label_map[key] = letters[next_idx] if next_idx < len(letters) else f"P{next_idx}"
-            next_idx += 1
-        labels.append(label_map[key])
-
+    # Second pass: assign label
+    for k in all_keys:
+        if counts[k] == 1:
+            # use the first sample as a numeric label
+            labels.append(f"{k[0]:.2f}")
+        else:
+            if k not in label_map:
+                label_map[k] = letters[next_idx] if next_idx < len(letters) else f"P{next_idx}"
+                next_idx += 1
+            labels.append(label_map[k])
     return labels
 
 # Handles extraction of features from segments

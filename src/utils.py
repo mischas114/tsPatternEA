@@ -27,15 +27,16 @@ def plot_signal_with_peaks(signal, peaks, save_path=None):
 def plot_segments(signal, peaks, labels, window_size=50, save_path=None):
     plt.figure(figsize=(12, 4))
     plt.plot(signal, label='ECG Signal')
+    y_offset = 0.10 * (np.max(signal) - np.min(signal))
 
     for p, label in zip(peaks, labels):
-        start = p - window_size
-        end = p + window_size
-        if start >= 0 and end <= len(signal):
-            plt.axvspan(start, end, color='orange', alpha=0.3)
-            # annotate segment center with its letter
-            y_offset = 0.05 * (np.max(signal) - np.min(signal))
-            plt.text(p, signal[p] + y_offset, label, ha='center', va='bottom', color='black')
+        # remove colored shading
+        # ensure all peaks get labeled
+        if 0 <= p < len(signal):
+            plt.text(
+                p, signal[p] + y_offset, label,
+                ha='center', va='bottom', color='black'
+            )
 
     plt.title('ECG Signal with Segmented Regions')
     plt.xlabel('Sample')

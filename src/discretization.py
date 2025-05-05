@@ -5,7 +5,7 @@ import numpy as np
 def discretize_features(features, n_bins=5):
     discretized = np.zeros_like(features)
     for i in range(features.shape[1]):
-        feature = features[:, i]
+        feature = features[:, i] # Select the i-th feature
         bins = np.linspace(np.min(feature), np.max(feature), n_bins + 1)
         discretized[:, i] = np.digitize(feature, bins) - 1  # bin indices start at 0
     return discretized

@@ -29,6 +29,11 @@ from utils import (
 ##############################################################################
 
 def main() -> None:
+    """
+    Main pipeline to load ECG data, preprocess it, detect peaks, segment
+    the signal, assign labels, extract features, discretize them, and
+    apply simple evolutionary operations. Results are saved to disk.
+    """
     # ---------- Paths -----------------------------------------------------
     # data_path = os.path.join("data", "ecg5000_test.csv")
     data_path = os.path.join("data", "synthetic_ecg_small.csv")
