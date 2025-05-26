@@ -1,1 +1,5 @@
-# Add required Python packages here
+numpy
+matplotlib
+pandas
+scipy
+scikit-learn

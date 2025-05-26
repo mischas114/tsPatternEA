@@ -1,37 +1,59 @@
-# Handles normalization, smoothing, and peak detection
 import pandas as pd
 import numpy as np
 from scipy.signal import find_peaks
 
-# AFTER ─ keep every beat as its own vector
-def load_ecg_data(path, drop_labels=True, beat_index=None):
+# Load continuous ECG data (each row = one time sample)
+def load_continuous_ecg(path):
     """
+    Loads continuous ECG data.
+    Handles both multichannel (signal + time) and single-channel (signal only) CSVs.
+    
+    Parameters
+    ----------
+    path : str
+        Path to CSV file containing multichannel ECG + timestamp.
+    
     Returns
     -------
-    traces : np.ndarray
-        • shape (n_beats, n_samples) if beat_index is None  
-        • shape (n_samples,)         if beat_index is int
+    signal : np.ndarray
+        ECG signal, shape (n_samples, n_channels)
+    time : np.ndarray
+        Time vector, shape (n_samples,)
     """
     df = pd.read_csv(path, header=None)
-    data = df.iloc[:, 1:].values if drop_labels else df.values          # (N,140)
+    if df.shape[1] == 1:
+        # Only one column: treat as signal only, no time
+        signal = df.values.astype(float)
+        signal = signal.reshape(-1, 1)  # shape (n_samples, 1)
+        time = np.arange(signal.shape[0])
+    else:
+        signal = df.iloc[:, :-1].values  # All but last column = signal
+        time = df.iloc[:, -1].values     # Last column = time
+        signal = signal.astype(float)
+        time = time.astype(float)
+    return signal, time
 
-    if beat_index is None:                     # all beats
-        return data.astype(float)
+# Normalize each channel to zero mean and unit variance
+def normalize_multichannel(signal):
+    return np.array([(ch - np.mean(ch)) / np.std(ch) for ch in signal.T]).T
 
-    return data[beat_index].astype(float)      # one beat
-
-# Standardize signal to zero mean and unit variance
-def normalize(signal):
-    mean = np.mean(signal)
-    std = np.std(signal)
-    return (signal - mean) / std
-
-# Smooth signal with moving average (window_size samples)
-def smooth(signal, window_size=5):
+# Apply moving average smoothing per channel
+def smooth_multichannel(signal, window_size=5):
     kernel = np.ones(window_size) / window_size
-    return np.convolve(signal, kernel, mode='same')
+    return np.array([np.convolve(ch, kernel, mode='same') for ch in signal.T]).T
 
-# Detect peaks in the signal using scipy's find_peaks
-def detect_peaks(signal, height=None, distance=None, prominence=None):
-    peaks, props = find_peaks(signal, height=height, distance=distance, prominence=prominence)
-    return peaks, props
+# Detect peaks on a selected lead
+def detect_peaks_on_lead(signal, lead_index=0, height=None, distance=None, prominence=None):
+    """
+    Apply peak detection to one lead of the ECG signal.
+    
+    Returns
+    -------
+    peaks : np.ndarray
+        Indices of detected peaks
+    properties : dict
+        Properties returned by find_peaks
+    """
+    lead = signal[:, lead_index]
+    peaks, properties = find_peaks(lead, height=height, distance=distance, prominence=prominence)
+    return peaks, properties

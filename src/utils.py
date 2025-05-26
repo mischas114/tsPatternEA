@@ -53,18 +53,28 @@ def plot_segments(signal, peaks, labels, window_size=50, save_path=None):
 # This function takes the features and their labels as input and plots them
 # It can be useful for visualizing the distribution of features across different segments.
 def plot_features(features, labels, save_path=None):
-    plt.figure(figsize=(12, 6))
-    for i, feature in enumerate(features.T):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    step = max(1, len(features) // 100)  # Show at most 100 points
+    indices = list(range(0, len(features), step))
+    sampled_features = features[indices]
+    sampled_labels = [labels[i] for i in indices]
+    plt.figure(figsize=(14, 8))
+    for i, feature in enumerate(sampled_features.T):
         plt.subplot(2, 2, i + 1)
         plt.scatter(range(len(feature)), feature, c='blue', label=f'Feature {i + 1}')
-        plt.title('Feature {}'.format(i + 1))
+        plt.title(f'Feature {i + 1}')
         plt.xlabel('Segment Index')
         plt.ylabel('Value')
         plt.grid(True)
-        # label each point
-        for idx, val in enumerate(feature):
-            plt.text(idx, val, labels[idx], fontsize=6, ha='center', va='bottom')
-
+        # label each point, but only if not too many
+        if len(feature) <= 30:
+            for idx, val in enumerate(feature):
+                plt.text(idx, val, sampled_labels[idx], fontsize=6, ha='center', va='bottom')
+        else:
+            # If too many, skip text labels
+            pass
+        plt.legend(fontsize=8)
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path)
@@ -94,31 +104,35 @@ def save_annotation_to_csv(signal, label_array, file_path):
         for i, (val, lab) in enumerate(zip(signal, label_array)):
             writer.writerow([i, val, label_map.get(lab, 0)])
 
-def plot_wave_annotation(signal, label_array, save_path=None):
+def plot_wave_annotation(signal, label_array, save_path=None, N=None):
     """
     Overlay wave labels on the ECG signal with distinct colors/markers,
     vertical lines for reference, and slight y-offsets to prevent overlap.
+    Optionally zoom in on the first N points.
     """
+    import numpy as np
+    import matplotlib.pyplot as plt
     label_colors = {'P':'blue', 'Q':'green', 'R':'red', 'S':'purple', 'T':'orange', 'U':'brown'}
-    plt.figure(figsize=(12, 4))
+    if N is not None:
+        signal = signal[:N]
+        label_array = label_array[:N]
+    plt.figure(figsize=(14, 8))
     plt.plot(signal, label='ECG Signal', color='black')
     offset_scale = 0.02 * (np.max(signal) - np.min(signal))
-
     for i, lab in enumerate(label_array):
         if lab:
             color = label_colors.get(lab, 'gray')
-            y_val = signal[i] + (offset_scale if lab != 'R' else 2*offset_scale)
+            offset_factor = 1 + (i % 3) * 0.5  # small stagger
+            y_val = signal[i] + offset_factor * offset_scale
             plt.scatter(i, y_val, color=color, marker='o', s=40, zorder=3)
             plt.axvline(x=i, color=color, linewidth=0.5, linestyle='--', alpha=0.5)
-            plt.text(
-                i, y_val + offset_scale, lab, ha='center', va='bottom',
-                fontsize=8, color=color
-            )
-
+            if len(signal) <= 100:  # Only print text if not too many
+                plt.text(i, y_val + offset_scale, lab, ha='center', va='bottom', fontsize=6, color=color)
     plt.title("ECG Wave Annotation")
     plt.xlabel("Sample")
     plt.ylabel("Amplitude")
     plt.grid(True)
+    plt.legend()
     if save_path:
         plt.savefig(save_path)
     else:

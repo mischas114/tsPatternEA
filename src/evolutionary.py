@@ -1,36 +1,52 @@
 # Implements the evolutionary algorithm, including fitness, mutation, and crossover
 import numpy as np
 
-# Simple mutation: randomly adjust features
-# random, simple with small perturbations (e.g., +/-1)
-# (perturbation: small change or deviation from the original value)
-def mutate(features, mutation_rate=0.1):
-    mutated = features.copy()
-    for i in range(mutated.shape[0]):
-        # np.random.rand() generates a random float in the range [0.0, 1.0)
-        # if the random number is less than mutation_rate, mutate the feature
-        if np.random.rand() < mutation_rate: # DevSkim: ignore DS148264
-            idx = np.random.randint(mutated.shape[1])
-            mutated[i, idx] += np.random.choice([-1, 1])
-    return mutated
+# Mutation for segment indices
+def mutate_segment(segment, mutation_rate=0.1, signal_length=None):
+    start, end = segment
+    if np.random.rand() < mutation_rate: # DevSkim: ignore DS148264
+        start = max(0, start + np.random.choice([-1, 1]))
+    if np.random.rand() < mutation_rate: # DevSkim: ignore DS148264
+        end = min(signal_length - 1, end + np.random.choice([-1, 1]))
+    return (start, end)
 
-# Simple crossover: swap parts between two feature vectors (per row basis)
-def crossover(parent1, parent2):
-    parent1 = parent1.copy()
-    parent2 = parent2.copy()
-    
-    # Ensure both parents are 1D array by squeezing the first dimension if necessary
-    if parent1.ndim == 2:
-        parent1 = parent1.squeeze(0)
-    if parent2.ndim == 2:
-        parent2 = parent2.squeeze(0)
+# Crossover for segment indices
+def crossover_segments(segment1, segment2):
+    start1, end1 = segment1
+    start2, end2 = segment2
+    # Swap start and end points
+    return (start1, end2), (start2, end1)
 
-    # Randomly select a crossover point
-    point = np.random.randint(1, parent1.shape[0] - 1)
-    # Create two children by swapping parts of the parents
-    child1 = np.concatenate((parent1[:point], parent2[point:]))
-    child2 = np.concatenate((parent2[:point], parent1[point:]))
-    return child1, child2
+# Improved fitness function: evaluate based on pattern matching
+def evaluate_fitness(segment, signal):
+    start, end = segment
+    segment_data = signal[start:end]
+    if len(segment_data) < 5:
+        return -np.inf  # Penalize too-short segments
+
+    # --- Feature-based metrics ---
+    mean = np.mean(segment_data)
+    std = np.std(segment_data)
+    max_val = np.max(segment_data)
+    min_val = np.min(segment_data)
+    # Entropy (discretize to 10 bins)
+    hist, _ = np.histogram(segment_data, bins=10, density=True)
+    hist = hist[hist > 0]
+    entropy = -np.sum(hist * np.log(hist)) if len(hist) > 0 else 0
+
+    # --- Correlation with R-wave shape (simple template) ---
+    # Use a synthetic R-wave template (sharp positive peak)
+    template = np.zeros_like(segment_data)
+    if len(template) > 0:
+        template[len(template)//2] = 1.0
+        corr = np.corrcoef(segment_data, template)[0, 1]
+    else:
+        corr = 0
+
+    # --- Combine metrics ---
+    # Encourage high max (peak), high std, high entropy, and R-wave-like shape
+    score = 1.0 * max_val + 0.5 * std + 0.2 * entropy + 0.5 * abs(corr)
+    return score
 
 def run_evolutionary_segmentation(signal, generations=10, population_size=5):
     """
@@ -44,31 +60,29 @@ def run_evolutionary_segmentation(signal, generations=10, population_size=5):
         population.append((start, end))
 
     for gen in range(generations):
-        # Evaluate fitness (dummy: length of segment for demonstration)
-        fitness = [abs(ind[1] - ind[0]) for ind in population]
+        # Evaluate fitness using the improved function
+        fitness = [evaluate_fitness(ind, signal) for ind in population]
         # Select top half
-        selected = [x for _, x in sorted(zip(fitness, population), reverse=True)][: population_size//2]
+        selected = [x for _, x in sorted(zip(fitness, population), reverse=True)][: population_size // 2]
 
         # Breed new individuals
         offspring = []
         while len(offspring) < population_size - len(selected):
-            p1, p2 = np.random.choice(selected, 2)
-            c1, c2 = crossover(np.array(p1), np.array(p2))
-            offspring.append(tuple(c1))
+            # Fix: np.random.choice expects a 1D array, so use indices
+            idxs = np.random.choice(len(selected), 2, replace=True)
+            p1, p2 = selected[idxs[0]], selected[idxs[1]]
+            c1, c2 = crossover_segments(p1, p2)
+            offspring.append(c1)
             if len(offspring) < population_size - len(selected):
-                offspring.append(tuple(c2))
+                offspring.append(c2)
 
         # Mutate
-        mutated = []
-        for ind in offspring:
-            arr = np.array(ind)
-            mutated_arr = mutate(arr.reshape(1, -1), mutation_rate=0.5)[0]
-            mutated.append(tuple(mutated_arr))
+        mutated = [mutate_segment(ind, mutation_rate=0.5, signal_length=len(signal)) for ind in offspring]
 
         # New population
         population = selected + mutated
 
     # Return best segmentation
-    final_fitness = [abs(ind[1] - ind[0]) for ind in population]
+    final_fitness = [evaluate_fitness(ind, signal) for ind in population]
     best_ind = population[np.argmax(final_fitness)]
     return best_ind

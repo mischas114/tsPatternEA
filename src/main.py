@@ -1,19 +1,23 @@
-"""Entry point for the Phase‑1 **single‑trace** pipeline.
-
-This version treats the whole ECG5000 test set as **one long time‑series**:
-    • each 140‑sample row is z‑normalised and smoothed **individually**
-      (avoids giant‑spike artefact)
-    • the beats are then concatenated → 1‑D array of length N_beats×140
-
-Outputs go to `results/` with global‑trace filenames.
-"""
 from __future__ import annotations
 
 import os
 import numpy as np
+import matplotlib.pyplot as plt
+from typing import Optional
+import json
+from datetime import datetime
 
-from preprocessing import load_ecg_data, normalize, smooth, detect_peaks
-from segmentation import annotate_waves, extract_wave_features
+
+from preprocessing import (
+    load_continuous_ecg,
+    normalize_multichannel,
+    smooth_multichannel,
+    detect_peaks_on_lead,
+)
+from segmentation import extract_segments, segment_ecg
+from evolutionary import run_evolutionary_segmentation
+from labeling import annotate_waves
+from features import extract_wave_features, extract_features
 from utils import (
     plot_signal_with_peaks,
     plot_features,
@@ -21,71 +25,152 @@ from utils import (
     plot_wave_annotation,
     save_annotation_to_csv,
 )
+from discretization import discretize_features, label_by_clustering
 
-##############################################################################
-# Main                                                                       #
-##############################################################################
 
-def main() -> None:
+def main(
+    data_path: str = "data/Synthetic-three-patterns-with-noise.csv",
+    output_dir: str = "results",
+    selected_lead: int = 0,
+    smooth_window: int = 5,
+    peak_height_factor: float = 0.6,
+    peak_distance: int = 70,
+    plot_zoom_window: int = 2000,
+    enable_evolution: bool = True,
+    enable_clustering: bool = True,
+) -> None:
     """
-    Main pipeline to load ECG data, preprocess it, detect peaks, segment
-    the signal, assign labels, extract features, and save results to disk.
+    Universal ECG processing pipeline.
     """
-    # ---------- Paths -----------------------------------------------------
-    # data_path = os.path.join("data", "ecg5000_test.csv")
-    data_path = os.path.join("data", "synthetic_ecg_small.csv")
-    output_dir = os.path.join("results")
     os.makedirs(output_dir, exist_ok=True)
 
-    # ---------- Load & per‑beat normalise ---------------------------------
-    traces = load_ecg_data(data_path)  # shape (N_beats, 140)
-    print(f"Loaded {traces.shape[0]} beats → concatenating into one trace …")
+    # ---------- Load & Preprocess ECG ------------------------
+    signal, time = load_continuous_ecg(data_path)
+    print(f"Loaded {signal.shape[0]} samples across {signal.shape[1]} channels")
 
-    norm_traces = np.array([smooth(normalize(b), window_size=5) for b in traces])
-    signal = norm_traces.flatten()  # length = N_beats * 140
+    signal = normalize_multichannel(signal)
+    signal = smooth_multichannel(signal, window_size=smooth_window)
 
-    # ---------- Peak detection on the long trace -------------------------
-    thr = 0.6 * np.max(signal)
-    peaks, _ = detect_peaks(signal, height=thr, distance=70)  # ≥ half a beat
-    print(f"Detected {len(peaks)} peaks in concatenated trace")
+    # ---------- Peak Detection -------------------------------
+    lead_signal = signal[:, selected_lead]
+    thr = peak_height_factor * np.max(lead_signal)
+    peaks, _ = detect_peaks_on_lead(signal, selected_lead, height=thr, distance=peak_distance)
+    print(f"Detected {len(peaks)} peaks on lead {selected_lead}")
 
-    # ---------- Visualise raw trace + peaks ------------------------------
     plot_signal_with_peaks(
-        signal,
-        peaks,
+        lead_signal, peaks,
         save_path=os.path.join(output_dir, "all_peaks.png"),
     )
 
-    # ---------- Wave Annotation ------------------------------------------
-    label_array = annotate_waves(signal, peaks)
+    # ---------- Wave Annotation ------------------------------
+    label_array = annotate_waves(lead_signal, peaks)
 
-    # Plot & save annotation
+    # Group waves into heartbeats (cardiac cycles)
+    from labeling import assign_labels, group_waves_into_heartbeats
+    segments = extract_segments(lead_signal, peaks)
+    wave_labels = assign_labels(segments)
+    heartbeats = group_waves_into_heartbeats(peaks, wave_labels)
+    # Save heartbeats to JSON for inspection
+    import json
+    with open(os.path.join(output_dir, "heartbeats.json"), "w") as f:
+        json.dump(heartbeats, f, indent=2, default=int)
+
     plot_wave_annotation(
-        signal, label_array,
+        lead_signal, label_array,
         save_path=os.path.join(output_dir, "wave_annotation.png"),
     )
+    plot_wave_annotation(
+        lead_signal, label_array,
+        save_path=os.path.join(output_dir, "wave_zoomed.png"),
+        N=plot_zoom_window,
+    )
     save_annotation_to_csv(
-        signal, label_array,
+        lead_signal, label_array,
         os.path.join(output_dir, "wave_annotation.csv"),
     )
 
-    # ---------- Wave-based Feature Extraction ----------------------------
-    features, wave_labels = extract_wave_features(signal, label_array)
+    # ---------- Feature Extraction ---------------------------
+    features, wave_labels = extract_wave_features(lead_signal, label_array)
+    if features.size > 0:
+        features = features / (np.max(np.abs(features), axis=0, keepdims=True) + 1e-9)
+        plot_features(
+            features, wave_labels,
+            save_path=os.path.join(output_dir, "all_features.png"),
+        )
+        save_features_to_csv(
+            features, wave_labels,
+            file_path=os.path.join(output_dir, "all_features.csv"),
+        )
+    else:
+        print("No features extracted (not enough peaks/waves detected). Skipping feature plots.")
 
-    # normalize features for plotting
-    features = features / (np.max(np.abs(features), axis=0, keepdims=True) + 1e-9)
+    if enable_evolution:
+        # ---------- Evolutionary Segmentation -------------------------
+        best_segment = run_evolutionary_segmentation(lead_signal)
+        best_segment = (int(best_segment[0]), int(best_segment[1]))
+        print(f"Best segment: {best_segment}")
 
-    # Plot & save features
-    plot_features(
-        features,
-        wave_labels,
-        save_path=os.path.join(output_dir, "all_features.png"),
-    )
-    save_features_to_csv(
-        features,
-        wave_labels,
-        file_path=os.path.join(output_dir, "all_features.csv"),
-    )
+        plt.figure(figsize=(12, 4))
+        plt.plot(lead_signal, label='ECG Signal')
+        plt.axvspan(*best_segment, color='red', alpha=0.3, label='Evolutionary Segment')
+        if len(peaks) > 0:
+            fixed_start = max(0, peaks[0] - 50)
+            fixed_end = min(len(lead_signal), peaks[0] + 50)
+            plt.axvspan(fixed_start, fixed_end, color='blue', alpha=0.2, label='Fixed Segment')
+        plt.title('ECG Signal with Evolutionary and Fixed Segments')
+        plt.xlabel('Sample')
+        plt.ylabel('Normalized Amplitude')
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(os.path.join(output_dir, "evolutionary_segment.png"))
+        plt.close()
+
+        if enable_clustering:
+            # ---------- Feature Clustering --------------------------
+            segment_data = lead_signal[best_segment[0]:best_segment[1]]
+            if len(segment_data) > 10:
+                window_size = 10
+                stride = 5
+                windows = [segment_data[i:i+window_size]
+                           for i in range(0, len(segment_data)-window_size+1, stride)]
+                window_features = extract_features(windows)
+                disc = discretize_features(window_features, n_bins=4)
+                cluster_labels = label_by_clustering(window_features, n_clusters=3)
+                print(f"Discretized features shape: {disc.shape}")
+                print(f"Cluster labels: {cluster_labels}")
+
+    # ---------- Save metadata ---------------------------------------------
+    metadata = {
+        "timestamp": datetime.now().isoformat(),
+        "data_path": data_path,
+        "output_dir": output_dir,
+        "selected_lead": selected_lead,
+        "smoothing_window": smooth_window,
+        "peak_threshold_factor": peak_height_factor,
+        "peak_distance": peak_distance,
+        "num_samples": int(signal.shape[0]),
+        "num_channels": int(signal.shape[1]),
+        "num_peaks_detected": int(len(peaks)),
+        "wave_annotation_file": os.path.join(output_dir, "wave_annotation.csv"),
+        "features_file": os.path.join(output_dir, "all_features.csv"),
+        "evolutionary_segmentation": {
+            "enabled": enable_evolution,
+            "segment": best_segment if enable_evolution else None,
+            "segment_file": os.path.join(output_dir, "evolutionary_segment.png") if enable_evolution else None,
+        },
+        "clustering": {
+            "enabled": enable_clustering,
+            "n_clusters": 3 if enable_clustering else None,
+        }
+    }
+
+    with open(os.path.join(output_dir, "metadata.json"), "w") as f:
+        json.dump(metadata, f, indent=4)
+
+    print(f"Metadata saved to {os.path.join(output_dir, 'metadata.json')}")
+
+
+
 
 
 if __name__ == "__main__":

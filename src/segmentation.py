@@ -1,6 +1,9 @@
 # Performs segmentation of the time series based on heuristic or detected events
 import numpy as np
 
+from features import extract_features
+from labeling import assign_labels
+
 # Handles segmentation of the time series based on heuristic or detected events
 # Cuts windows around detected peaks (your main segmentation).
 def extract_segments(signal, peaks, window_size=50):
@@ -13,79 +16,6 @@ def extract_segments(signal, peaks, window_size=50):
             segment = signal[start:end]
             segments.append(segment)
     return np.array(segments)
-
-# Handles assignment of labels to segments
-# Assign a letter A,B,C… to each unique segment (after rounding to 3 d.p.).
-# Reuses the same letter for repeated shapes.
-def assign_labels(segments):
-    letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    # First pass: build frequency map
-    all_keys = [tuple(np.round(seg, 3)) for seg in segments]
-    counts = {}
-    for k in all_keys:
-        counts[k] = counts.get(k, 0) + 1
-    
-    label_map = {}
-    labels = []
-    next_idx = 0
-    # Second pass: assign label
-    for k in all_keys:
-        if counts[k] == 1:
-            # use the first sample as a numeric label
-            labels.append(f"{k[0]:.2f}")
-        else:
-            if k not in label_map:
-                label_map[k] = letters[next_idx] if next_idx < len(letters) else f"P{next_idx}"
-                next_idx += 1
-            labels.append(label_map[k])
-    return labels
-
-# Annotate Waves high and low points with labels
-# put P, Q, R, S, T, U, V, W, X, Y, Z on the peaks of the segments
-# if not repeated, use the first sample as a numeric label
-def annotate_waves(signal, peaks):
-    labels = assign_labels(extract_segments(signal, peaks))
-    annotations = {}
-    for p, label in zip(peaks, labels):
-        if 0 <= p < len(signal):
-            annotations[p] = label
-    return annotations
-
-# extract wave features
-# Extracts features from segments around detected peaks (e.g., mean, std, max, min).
-# This function takes the signal, detected peaks, and a window size to define the segment length.
-def extract_wave_features(signal, label_array, half_window=3):
-    """
-    Extract features for each labeled wave. Returns (features, wave_labels)
-    where features[i] correspond to wave wave_labels[i].
-    """
-    features = []
-    wave_labels = []
-    for i, lab in enumerate(label_array):
-        if lab:
-            start = max(i - half_window, 0)
-            end = min(i + half_window + 1, len(signal))
-            window = signal[start:end]
-            if window.size > 0:  # ensure valid window
-                mean = np.mean(window)
-                std = np.std(window)
-                max_val = np.max(window)
-                min_val = np.min(window)
-                features.append([mean, std, max_val, min_val])
-                wave_labels.append(lab)
-    return np.array(features), wave_labels
-
-# Handles extraction of features from segments
-# Extracts simple features (mean, std, max, min) from each segment (for later clustering or EA).
-def extract_features(segments):
-    features = []
-    for segment in segments:
-        mean = np.mean(segment)
-        std = np.std(segment)
-        max_val = np.max(segment)
-        min_val = np.min(segment)
-        features.append([mean, std, max_val, min_val])
-    return np.array(features)
 
 # Handles segmentation of the time series based on heuristic or detected events
 # Pipeline function that combines the three steps together (extract → label → feature).
