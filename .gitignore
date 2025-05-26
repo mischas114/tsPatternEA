@@ -7,3 +7,28 @@
 *.cache
 # add .log files
 *.log
+
+/# add .pyc files
+*.pyc
+# add .pyo files
+*.pyo
+# add .pyd files
+*.pyd
+# add .egg files
+*.egg
+
+#.venv folder
+# add virtual environment folder
+# This is a common name for virtual environments
+.venv
+# add __pycache__ folders
+__pycache__/
+# add .idea folder
+.idea/
+# add .vscode folder
+.vscode/
+# add .env files
+.env
+
+# add .DS_Store files
+.DS_Store
