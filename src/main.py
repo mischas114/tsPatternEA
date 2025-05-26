@@ -57,18 +57,22 @@ def main(
     peaks, _ = detect_peaks_on_lead(signal, selected_lead, height=thr, distance=peak_distance)
     print(f"Detected {len(peaks)} peaks on lead {selected_lead}")
 
+    # --- Assign wave labels for peaks for plotting ---
+    from labeling import assign_labels
+    segments = extract_segments(lead_signal, peaks)
+    wave_labels = assign_labels(segments)
+
     plot_signal_with_peaks(
         lead_signal, peaks,
         save_path=os.path.join(output_dir, "all_peaks.png"),
+        wave_labels=wave_labels
     )
 
     # ---------- Wave Annotation ------------------------------
     label_array = annotate_waves(lead_signal, peaks)
 
     # Group waves into heartbeats (cardiac cycles)
-    from labeling import assign_labels, group_waves_into_heartbeats
-    segments = extract_segments(lead_signal, peaks)
-    wave_labels = assign_labels(segments)
+    from labeling import group_waves_into_heartbeats
     heartbeats = group_waves_into_heartbeats(peaks, wave_labels)
     # Save heartbeats to JSON for inspection
     import json
@@ -169,6 +173,20 @@ def main(
 
     print(f"Metadata saved to {os.path.join(output_dir, 'metadata.json')}")
 
+    # ---------- Save Raw Data for Report -------------------------------
+    np.savez(os.path.join(output_dir, "raw_data.npz"),
+             signal=signal,
+             lead_signal=lead_signal,
+             peaks=peaks,
+             label_array=label_array,
+             features=features if features.size > 0 else [],
+             wave_labels=np.array(wave_labels),
+             segment=best_segment if enable_evolution else [],
+             cluster_labels=cluster_labels if enable_evolution and enable_clustering else [],
+             discretized_features=disc if enable_evolution and enable_clustering else []
+    )
+
+    print(f"Raw data saved to {os.path.join(output_dir, 'raw_data.npz')}")
 
 
 

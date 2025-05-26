@@ -6,11 +6,23 @@ import numpy as np
 
 # Plot the full ECG signal with detected peaks
 # This function takes the signal and the detected peaks as input and plots them
-def plot_signal_with_peaks(signal, peaks, save_path=None):
+def plot_signal_with_peaks(signal, peaks, save_path=None, wave_labels=None):
     plt.figure(figsize=(12, 4))
-    plt.plot(signal, label='ECG Signal')
-    plt.plot(peaks, signal[peaks], 'rx', label='Detected Peaks')  # 'rx' = red X marks
-    plt.title('ECG Signal with Detected Peaks')
+    plt.plot(signal, label='ECG Signal', color='black')
+    label_colors = {'P':'blue', 'Q':'green', 'R':'red', 'S':'purple', 'T':'orange', 'U':'brown'}
+    y_offset = 0.03 * (np.max(signal) - np.min(signal))
+    if wave_labels is not None and len(wave_labels) == len(peaks):
+        for p, lab in zip(peaks, wave_labels):
+            if lab:
+                color = label_colors.get(lab, 'gray')
+                plt.scatter(p, signal[p] + y_offset, color=color, marker='o', s=50, zorder=3)
+                plt.text(p, signal[p] + 2*y_offset, lab, ha='center', va='bottom', fontsize=9, color=color, fontweight='bold')
+                plt.axvline(x=p, color=color, linewidth=0.7, linestyle='--', alpha=0.4)
+            else:
+                plt.scatter(p, signal[p], color='gray', marker='x', s=30, zorder=2)
+    else:
+        plt.plot(peaks, signal[peaks], 'rx', label='Detected Peaks')
+    plt.title('ECG Signal with Detected Peaks and Wave Labels')
     plt.xlabel('Sample')
     plt.ylabel('Normalized Amplitude')
     plt.legend()
@@ -118,21 +130,26 @@ def plot_wave_annotation(signal, label_array, save_path=None, N=None):
         label_array = label_array[:N]
     plt.figure(figsize=(14, 8))
     plt.plot(signal, label='ECG Signal', color='black')
-    offset_scale = 0.02 * (np.max(signal) - np.min(signal))
+    offset_scale = 0.03 * (np.max(signal) - np.min(signal))
+    used_positions = set()
     for i, lab in enumerate(label_array):
         if lab:
             color = label_colors.get(lab, 'gray')
-            offset_factor = 1 + (i % 3) * 0.5  # small stagger
+            # Offset y to avoid overlap: stagger by wave type and position
+            offset_factor = 1 + (hash(lab) % 3) * 0.7 + (i % 2) * 0.3
             y_val = signal[i] + offset_factor * offset_scale
-            plt.scatter(i, y_val, color=color, marker='o', s=40, zorder=3)
-            plt.axvline(x=i, color=color, linewidth=0.5, linestyle='--', alpha=0.5)
-            if len(signal) <= 100:  # Only print text if not too many
-                plt.text(i, y_val + offset_scale, lab, ha='center', va='bottom', fontsize=6, color=color)
+            # Avoid overlapping markers by checking used positions
+            while (i, round(y_val, 2)) in used_positions:
+                y_val += 0.5 * offset_scale
+            used_positions.add((i, round(y_val, 2)))
+            plt.scatter(i, y_val, color=color, marker='o', s=60, zorder=3, label=f'{lab} wave' if i == 0 else None)
+            plt.text(i, y_val + offset_scale, lab, ha='center', va='bottom', fontsize=10, color=color, fontweight='bold')
+            plt.axvline(x=i, color=color, linewidth=0.7, linestyle='--', alpha=0.4)
     plt.title("ECG Wave Annotation")
     plt.xlabel("Sample")
     plt.ylabel("Amplitude")
     plt.grid(True)
-    plt.legend()
+    plt.legend(loc='upper right', fontsize=9)
     if save_path:
         plt.savefig(save_path)
     else:
