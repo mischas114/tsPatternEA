@@ -29,7 +29,7 @@ from discretization import discretize_features, label_by_clustering
 
 
 def main(
-    data_path: str = "data/Synthetic-three-patterns-with-noise.csv",
+    data_path: str = "data/ecg-real.csv",
     output_dir: str = "results",
     selected_lead: int = 0,
     smooth_window: int = 5,

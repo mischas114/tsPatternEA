@@ -7,30 +7,28 @@ def load_continuous_ecg(path):
     """
     Loads continuous ECG data.
     Handles both multichannel (signal + time) and single-channel (signal only) CSVs.
-    
-    Parameters
-    ----------
-    path : str
-        Path to CSV file containing multichannel ECG + timestamp.
-    
-    Returns
-    -------
-    signal : np.ndarray
-        ECG signal, shape (n_samples, n_channels)
-    time : np.ndarray
-        Time vector, shape (n_samples,)
+    Tries to auto-detect and skip header if present.
     """
-    df = pd.read_csv(path, header=None)
-    if df.shape[1] == 1:
-        # Only one column: treat as signal only, no time
-        signal = df.values.astype(float)
-        signal = signal.reshape(-1, 1)  # shape (n_samples, 1)
-        time = np.arange(signal.shape[0])
-    else:
-        signal = df.iloc[:, :-1].values  # All but last column = signal
-        time = df.iloc[:, -1].values     # Last column = time
-        signal = signal.astype(float)
-        time = time.astype(float)
+    try:
+        df = pd.read_csv(path, header=None)
+        # Try conversion
+        if df.shape[1] == 1:
+            signal = df.values.astype(float)
+            signal = signal.reshape(-1, 1)
+            time = np.arange(signal.shape[0])
+        else:
+            signal = df.iloc[:, :-1].values.astype(float)
+            time = df.iloc[:, -1].values.astype(float)
+    except ValueError:
+        # Try again, skipping the first row (header)
+        df = pd.read_csv(path, header=0)
+        if df.shape[1] == 1:
+            signal = df.values.astype(float)
+            signal = signal.reshape(-1, 1)
+            time = np.arange(signal.shape[0])
+        else:
+            signal = df.iloc[:, :-1].values.astype(float)
+            time = df.iloc[:, -1].values.astype(float)
     return signal, time
 
 # Normalize each channel to zero mean and unit variance
