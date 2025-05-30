@@ -13,10 +13,11 @@ from preprocessing import (
     normalize_multichannel,
     smooth_multichannel,
     detect_peaks_on_lead,
+    detect_bipolar_peaks,  # <-- import the new function
 )
 from segmentation import extract_segments, segment_ecg
 from evolutionary import run_evolutionary_segmentation
-from labeling import annotate_waves
+from labeling import assign_labels, annotate_waves, group_waves_into_heartbeats
 from features import extract_wave_features, extract_features
 from utils import (
     plot_signal_with_peaks,
@@ -52,15 +53,17 @@ def main(
     signal = smooth_multichannel(signal, window_size=smooth_window)
 
     # ---------- Peak Detection -------------------------------
+    # --- Peak Detection (new, both polarities) --------------------------
     lead_signal = signal[:, selected_lead]
-    thr = peak_height_factor * np.max(lead_signal)
-    peaks, _ = detect_peaks_on_lead(signal, selected_lead, height=thr, distance=peak_distance)
-    print(f"Detected {len(peaks)} peaks on lead {selected_lead}")
+    peaks = detect_bipolar_peaks(lead_signal,
+                                 height_frac=0.15,
+                                 distance=peak_distance)
+    print(f"Detected {len(peaks)} peaks (both polarities).")
 
     # --- Assign wave labels for peaks for plotting ---
-    from labeling import assign_labels
-    segments = extract_segments(lead_signal, peaks)
-    wave_labels = assign_labels(segments)
+    fs = 250  # Sampling frequency in Hz (adjust if needed)
+    label_array = annotate_waves(lead_signal, peaks, fs=fs)
+    wave_labels = [label_array[p] if 0 <= p < len(label_array) else '' for p in peaks]
 
     plot_signal_with_peaks(
         lead_signal, peaks,
@@ -68,14 +71,9 @@ def main(
         wave_labels=wave_labels
     )
 
-    # ---------- Wave Annotation ------------------------------
-    label_array = annotate_waves(lead_signal, peaks)
-
     # Group waves into heartbeats (cardiac cycles)
-    from labeling import group_waves_into_heartbeats
     heartbeats = group_waves_into_heartbeats(peaks, wave_labels)
     # Save heartbeats to JSON for inspection
-    import json
     with open(os.path.join(output_dir, "heartbeats.json"), "w") as f:
         json.dump(heartbeats, f, indent=2, default=int)
 

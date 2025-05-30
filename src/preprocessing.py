@@ -55,3 +55,11 @@ def detect_peaks_on_lead(signal, lead_index=0, height=None, distance=None, promi
     lead = signal[:, lead_index]
     peaks, properties = find_peaks(lead, height=height, distance=distance, prominence=prominence)
     return peaks, properties
+
+def detect_bipolar_peaks(signal, height_frac=0.15, distance=30):
+    """Return BOTH upward and downward extrema."""
+    abs_max = np.max(np.abs(signal))
+    thr = height_frac * abs_max
+    pos_peaks, _ = find_peaks(signal,  height=thr, distance=distance)
+    neg_peaks, _ = find_peaks(-signal, height=thr, distance=distance)
+    return np.sort(np.concatenate((pos_peaks, neg_peaks)))

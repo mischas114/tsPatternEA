@@ -7,19 +7,25 @@ import numpy as np
 # Plot the full ECG signal with detected peaks
 # This function takes the signal and the detected peaks as input and plots them
 def plot_signal_with_peaks(signal, peaks, save_path=None, wave_labels=None):
+    import matplotlib.pyplot as plt
+    import numpy as np
     plt.figure(figsize=(12, 4))
     plt.plot(signal, label='ECG Signal', color='black')
-    label_colors = {'P':'blue', 'Q':'green', 'R':'red', 'S':'purple', 'T':'orange', 'U':'brown'}
+    # Dynamically assign colors for any label
+    import itertools
+    color_cycle = itertools.cycle(['blue', 'green', 'red', 'purple', 'orange', 'brown', 'magenta', 'cyan', 'olive', 'teal'])
+    label_colors = {}
     y_offset = 0.03 * (np.max(signal) - np.min(signal))
     if wave_labels is not None and len(wave_labels) == len(peaks):
+        for lab in set(wave_labels):
+            if lab and lab not in label_colors:
+                label_colors[lab] = next(color_cycle)
         for p, lab in zip(peaks, wave_labels):
             if lab:
-                color = label_colors.get(lab, 'gray')
-                plt.scatter(p, signal[p] + y_offset, color=color, marker='o', s=50, zorder=3)
-                plt.text(p, signal[p] + 2*y_offset, lab, ha='center', va='bottom', fontsize=9, color=color, fontweight='bold')
-                plt.axvline(x=p, color=color, linewidth=0.7, linestyle='--', alpha=0.4)
+                plt.plot(p, signal[p], 'o', color=label_colors[lab], label=f'Label {lab}' if f'Label {lab}' not in plt.gca().get_legend_handles_labels()[1] else "")
+                plt.text(p, signal[p] + y_offset, lab, ha='center', va='bottom', color=label_colors[lab], fontsize=9)
             else:
-                plt.scatter(p, signal[p], color='gray', marker='x', s=30, zorder=2)
+                plt.plot(p, signal[p], 'rx')
     else:
         plt.plot(peaks, signal[peaks], 'rx', label='Detected Peaks')
     plt.title('ECG Signal with Detected Peaks and Wave Labels')
@@ -106,10 +112,14 @@ def save_features_to_csv(features, labels, file_path):
 def save_annotation_to_csv(signal, label_array, file_path):
     """
     Save annotated signal to CSV: [index, value, label_code].
-    Label codes: {'':0, 'P':1, 'Q':2, 'R':3, 'S':4, 'T':5, 'U':6}
+    Label codes: {'':0, 'A':1, 'B':2, 'C':3, ...}
     """
-    label_map = {'':0, 'P':1, 'Q':2, 'R':3, 'S':4, 'T':5, 'U':6}
     import csv
+    # Dynamically assign codes for all unique labels
+    unique_labels = sorted(set(lab for lab in label_array if lab))
+    label_map = {'': 0}
+    for idx, lab in enumerate(unique_labels, 1):
+        label_map[lab] = idx
     with open(file_path, 'w', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(["Index", "ECG_Value", "Label_Code"])
@@ -117,14 +127,9 @@ def save_annotation_to_csv(signal, label_array, file_path):
             writer.writerow([i, val, label_map.get(lab, 0)])
 
 def plot_wave_annotation(signal, label_array, save_path=None, N=None):
-    """
-    Overlay wave labels on the ECG signal with distinct colors/markers,
-    vertical lines for reference, and slight y-offsets to prevent overlap.
-    Optionally zoom in on the first N points.
-    """
-    import numpy as np
     import matplotlib.pyplot as plt
-    label_colors = {'P':'blue', 'Q':'green', 'R':'red', 'S':'purple', 'T':'orange', 'U':'brown'}
+    import numpy as np
+    # Only plot non-empty labels
     if N is not None:
         signal = signal[:N]
         label_array = label_array[:N]
@@ -132,24 +137,29 @@ def plot_wave_annotation(signal, label_array, save_path=None, N=None):
     plt.plot(signal, label='ECG Signal', color='black')
     offset_scale = 0.03 * (np.max(signal) - np.min(signal))
     used_positions = set()
+    # Assign colors for all unique labels (ignore blanks)
+    unique_labels = [lab for lab in label_array if lab]
+    color_cycle = plt.cm.get_cmap('tab10', max(1, len(set(unique_labels))))
+    label_colors = {lab: color_cycle(i % 10) for i, lab in enumerate(sorted(set(unique_labels)))}
     for i, lab in enumerate(label_array):
         if lab:
             color = label_colors.get(lab, 'gray')
-            # Offset y to avoid overlap: stagger by wave type and position
             offset_factor = 1 + (hash(lab) % 3) * 0.7 + (i % 2) * 0.3
             y_val = signal[i] + offset_factor * offset_scale
-            # Avoid overlapping markers by checking used positions
             while (i, round(y_val, 2)) in used_positions:
-                y_val += 0.5 * offset_scale
+                y_val += 0.01 * offset_scale
             used_positions.add((i, round(y_val, 2)))
-            plt.scatter(i, y_val, color=color, marker='o', s=60, zorder=3, label=f'{lab} wave' if i == 0 else None)
-            plt.text(i, y_val + offset_scale, lab, ha='center', va='bottom', fontsize=10, color=color, fontweight='bold')
-            plt.axvline(x=i, color=color, linewidth=0.7, linestyle='--', alpha=0.4)
+            plt.plot(i, y_val, 'o', color=color, label=f'Label {lab}' if f'Label {lab}' not in plt.gca().get_legend_handles_labels()[1] else "")
+            plt.text(i, y_val, lab, ha='center', va='bottom', color=color, fontsize=9)
     plt.title("ECG Wave Annotation")
     plt.xlabel("Sample")
     plt.ylabel("Amplitude")
     plt.grid(True)
-    plt.legend(loc='upper right', fontsize=9)
+    # Only show legend for unique labels
+    handles, labels = plt.gca().get_legend_handles_labels()
+    by_label = dict(zip(labels, handles))
+    if by_label:
+        plt.legend(by_label.values(), by_label.keys(), loc='upper right', fontsize=9)
     if save_path:
         plt.savefig(save_path)
     else:
