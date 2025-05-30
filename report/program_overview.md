@@ -14,6 +14,7 @@ The program processes ECG data (heart signal recordings) to detect important poi
 - **Normalizes** the signal (so it has zero mean and unit variance).
 - **Smooths** the signal to reduce noise.
 - **Detects peaks** (important points in the ECG, like R-waves) using signal processing techniques.
+- **Detects both upward and downward peaks** (bipolar peak detection) for more comprehensive wave identification.
 
 ### 2. **segmentation.py**
 
@@ -25,6 +26,7 @@ The program processes ECG data (heart signal recordings) to detect important poi
 
 - **Assigns labels** (P, Q, R, S, T, U) to each segment or peak, based on their position and characteristics.
 - **Groups waves** into heartbeats (cardiac cycles) for easier analysis.
+- **Annotates the signal** with per-sample wave labels for visualization and downstream processing.
 
 ### 4. **features.py**
 
@@ -35,6 +37,7 @@ The program processes ECG data (heart signal recordings) to detect important poi
 
 - **Implements an evolutionary algorithm** to find the best way to segment the ECG signal.
 - Uses random changes and selection to improve segmentation over several generations.
+- **Evaluates segment fitness** using a combination of statistical and shape-based metrics.
 
 ### 6. **discretization.py**
 
@@ -45,6 +48,7 @@ The program processes ECG data (heart signal recordings) to detect important poi
 
 - **Provides helper functions** for plotting signals, segments, features, and annotations.
 - **Saves results** (like features and annotations) to files for later use.
+- **Plots wave annotations and segments** for visual inspection.
 
 ## How Does the Main Program Work? (main.py)
 
@@ -52,16 +56,15 @@ The `main.py` file is the entry point of the program. Here is what it does, step
 
 1. **Loads the ECG data** from a file.
 2. **Normalizes and smooths** the signal to prepare it for analysis.
-3. **Detects peaks** (important points) in the ECG signal.
-4. **Segments the signal** around each detected peak.
-5. **Assigns labels** (P, Q, R, S, T, U) to each segment.
-6. **Plots the signal** with detected peaks and labels for visualization.
-7. **Annotates the whole signal** with wave labels and saves the annotation.
-8. **Extracts features** from each labeled wave or segment.
-9. **Plots the extracted features** for inspection.
-10. **Optionally runs an evolutionary algorithm** to find the best segmentation.
-11. **Optionally clusters the features** into groups (for pattern recognition).
-12. **Saves all results** (plots, features, annotations, metadata) to the output folder for later use or reporting.
+3. **Detects both upward and downward peaks** in the ECG signal.
+4. **Assigns wave labels** (P, Q, R, S, T, U) to each detected peak.
+5. **Plots the signal** with detected peaks and labels for visualization.
+6. **Annotates the whole signal** with wave labels and saves the annotation.
+7. **Extracts features** from each labeled wave or segment.
+8. **Plots the extracted features** for inspection.
+9. **Optionally runs an evolutionary algorithm** to find the best segmentation.
+10. **Optionally clusters the features** into groups (for pattern recognition).
+11. **Saves all results** (plots, features, annotations, metadata) to the output folder for later use or reporting.
 
 ## Example Data: Synthetic-three-patterns-with-noise.csv
 

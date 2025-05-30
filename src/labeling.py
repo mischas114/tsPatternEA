@@ -84,33 +84,56 @@ def assign_labels(signal: np.ndarray, peaks: List[int], fs: int = DEFAULT_FS):
 
     global_max = np.max(np.abs(signal))
     r_peaks = detect_r_peaks(signal, peaks)
+    # --- Helper for variable label assignment ---
+    def get_var_label(idx):
+        label = ''
+        while True:
+            label = chr(ord('A') + (idx % 26)) + label
+            idx = idx // 26 - 1
+            if idx < 0:
+                break
+        return label
+
+    def group_similar_amplitudes(amps, indices):
+        groups = []  # list of lists of indices
+        used = set()
+        for i, amp in enumerate(amps):
+            if i in used:
+                continue
+            group = [i]
+            used.add(i)
+            for j in range(i+1, len(amps)):
+                if j not in used and abs(amp - amps[j]) < SIMILARITY_TOL:
+                    group.append(j)
+                    used.add(j)
+            groups.append(group)
+        return groups
+
     if len(r_peaks) == 0:
-        # Group similar amplitudes as same label if they are close
-        labels = []
-        used = []
-        for p in peaks:
-            amp = signal[p]
-            found = False
-            for idx, (ref_amp, ref_label) in enumerate(used):
-                if abs(amp - ref_amp) < SIMILARITY_TOL:
-                    labels.append(ref_label)
-                    found = True
-                    break
-            if not found:
-                label = f"{amp:.2f}"
-                labels.append(label)
-                used.append((amp, label))
+        # Group similar amplitudes, assign variable label if group >1, else real value
+        amps = [signal[p] for p in peaks]
+        groups = group_similar_amplitudes(amps, list(range(len(peaks))))
+        labels = [None] * len(peaks)
+        var_label_idx = 0
+        for group in groups:
+            if len(group) == 1:
+                idx = group[0]
+                labels[idx] = f"{amps[idx]:.2f}"
+            else:
+                var_label = get_var_label(var_label_idx)
+                for idx in group:
+                    labels[idx] = var_label
+                var_label_idx += 1
         return np.array(labels)
 
-    labels = []
-    used = []  # <-- fix: track amplitude-label pairs for unknowns
-    for p in peaks:
-        # ---------- find neighbouring R’s to get current RR interval -----
+    labels = [None] * len(peaks)
+    unknown_indices = []
+    unknown_amps = []
+    used = []  # for variable label assignment
+    for i, p in enumerate(peaks):
         nearest_r_idx = np.argmin([abs(p - r) for r in r_peaks])
         nearest_r = r_peaks[nearest_r_idx]
-        beat_no   = nearest_r_idx + 1                # 1‑based
-
-        # RR interval in samples ------------------------------------------------
+        beat_no   = nearest_r_idx + 1
         if nearest_r_idx + 1 < len(r_peaks):
             rr = r_peaks[nearest_r_idx + 1] - nearest_r
         elif nearest_r_idx > 0:
@@ -119,25 +142,27 @@ def assign_labels(signal: np.ndarray, peaks: List[int], fs: int = DEFAULT_FS):
             rr = int(0.8 * fs)
         if rr == 0:
             rr = 1
-
-        rel_pos = (p - nearest_r) / rr              # −0.5 … +0.5 …
+        rel_pos = (p - nearest_r) / rr
         letter  = classify_peak(rel_pos, signal[p], global_max)
-
         if letter == "":
-            # Unknown → group similar amplitudes as same label
-            amp = signal[p]
-            found = False
-            for idx, (ref_amp, ref_label) in enumerate(used):
-                if abs(amp - ref_amp) < SIMILARITY_TOL:
-                    letter = ref_label
-                    found = True
-                    break
-            if not found:
-                letter = f"{amp:.2f}"
-                used.append((amp, letter))
-
-        labels.append(f"{letter}{beat_no}")
-
+            unknown_indices.append(i)
+            unknown_amps.append(signal[p])
+        else:
+            labels[i] = f"{letter}{beat_no}"
+    # Now process unknowns
+    if unknown_indices:
+        groups = group_similar_amplitudes(unknown_amps, unknown_indices)
+        var_label_idx = 0
+        for group in groups:
+            if len(group) == 1:
+                idx = unknown_indices[group[0]]
+                labels[idx] = f"{signal[peaks[idx]]:.2f}"
+            else:
+                var_label = get_var_label(var_label_idx)
+                for idx_in_group in group:
+                    idx = unknown_indices[idx_in_group]
+                    labels[idx] = f"{var_label}{nearest_r_idx+1}"
+                var_label_idx += 1
     return np.array(labels)
 
 # ----------------------------------------------------------------------
