@@ -22,8 +22,8 @@ def plot_signal_with_peaks(signal, peaks, save_path=None, wave_labels=None):
                 label_colors[lab] = next(color_cycle)
         for p, lab in zip(peaks, wave_labels):
             if lab:
-                plt.plot(p, signal[p], 'o', color=label_colors[lab], label=f'Label {lab}' if f'Label {lab}' not in plt.gca().get_legend_handles_labels()[1] else "")
-                plt.text(p, signal[p] + y_offset, lab, ha='center', va='bottom', color=label_colors[lab], fontsize=9)
+                plt.plot(p, signal[p], 'o', markersize=12, markeredgewidth=2, markeredgecolor='black', color=label_colors[lab], label=f'Label {lab}' if f'Label {lab}' not in plt.gca().get_legend_handles_labels()[1] else "")
+                plt.text(p, signal[p] + y_offset, lab, ha='center', va='bottom', color=label_colors[lab], fontsize=14, fontweight='bold', bbox=dict(facecolor='white', edgecolor=label_colors[lab], boxstyle='round,pad=0.2', alpha=0.8))
             else:
                 plt.plot(p, signal[p], 'rx')
     else:
@@ -149,8 +149,10 @@ def plot_wave_annotation(signal, label_array, save_path=None, N=None):
             while (i, round(y_val, 2)) in used_positions:
                 y_val += 0.01 * offset_scale
             used_positions.add((i, round(y_val, 2)))
-            plt.plot(i, y_val, 'o', color=color, label=f'Label {lab}' if f'Label {lab}' not in plt.gca().get_legend_handles_labels()[1] else "")
-            plt.text(i, y_val, lab, ha='center', va='bottom', color=color, fontsize=9)
+            # Make the point more visible: larger marker, black edge, higher zorder
+            plt.scatter(i, y_val, s=120, color=color, edgecolor='black', linewidths=2, zorder=10)
+            plt.text(i, y_val, lab, ha='center', va='bottom', color=color, fontsize=14, fontweight='bold',
+                     bbox=dict(facecolor='white', edgecolor=color, boxstyle='round,pad=0.2', alpha=0.85), zorder=11)
     plt.title("ECG Wave Annotation")
     plt.xlabel("Sample")
     plt.ylabel("Amplitude")
