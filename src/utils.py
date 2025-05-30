@@ -137,13 +137,14 @@ def plot_wave_annotation(signal, label_array, save_path=None, N=None):
     plt.plot(signal, label='ECG Signal', color='black')
     offset_scale = 0.03 * (np.max(signal) - np.min(signal))
     used_positions = set()
-    # Assign colors for all unique labels (ignore blanks)
-    unique_labels = [lab for lab in label_array if lab]
-    color_cycle = plt.cm.get_cmap('tab10', max(1, len(set(unique_labels))))
-    label_colors = {lab: color_cycle(i % 10) for i, lab in enumerate(sorted(set(unique_labels)))}
+    # Assign colors for all unique label letters (e.g., S, R, T, P, Q, U), not full label (e.g., S1, S2)
+    unique_letters = sorted(set(''.join(filter(str.isalpha, lab)) for lab in label_array if lab))
+    color_cycle = plt.cm.get_cmap('tab10', max(1, len(unique_letters)))
+    letter_colors = {letter: color_cycle(i % 10) for i, letter in enumerate(unique_letters)}
     for i, lab in enumerate(label_array):
         if lab:
-            color = label_colors.get(lab, 'gray')
+            letter = ''.join(filter(str.isalpha, lab))
+            color = letter_colors.get(letter, 'gray')
             offset_factor = 1 + (hash(lab) % 3) * 0.7 + (i % 2) * 0.3
             y_val = signal[i] + offset_factor * offset_scale
             while (i, round(y_val, 2)) in used_positions:

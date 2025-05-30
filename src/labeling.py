@@ -31,6 +31,8 @@ from typing import List
 DEFAULT_FS = 250           # Hz (adjust to your recorder)
 R_THRESH   = 0.6           # fraction of global max() → R detection
 MIN_PQR_STRENGTH = 0.1     # fraction of max(|signal|) for P/Q/S/T eligibility
+# Increase tolerance for amplitude similarity: group similar amplitudes as same wave
+SIMILARITY_TOL = 0.02  # Accept amplitude difference up to 0.02 (tune as needed)
 
 # Time‑window rules expressed as *fractions of the surrounding RR interval*
 WINDOWS = {
@@ -83,9 +85,25 @@ def assign_labels(signal: np.ndarray, peaks: List[int], fs: int = DEFAULT_FS):
     global_max = np.max(np.abs(signal))
     r_peaks = detect_r_peaks(signal, peaks)
     if len(r_peaks) == 0:
-        return np.array([f"{signal[p]:.2f}" for p in peaks])  # give up
+        # Group similar amplitudes as same label if they are close
+        labels = []
+        used = []
+        for p in peaks:
+            amp = signal[p]
+            found = False
+            for idx, (ref_amp, ref_label) in enumerate(used):
+                if abs(amp - ref_amp) < SIMILARITY_TOL:
+                    labels.append(ref_label)
+                    found = True
+                    break
+            if not found:
+                label = f"{amp:.2f}"
+                labels.append(label)
+                used.append((amp, label))
+        return np.array(labels)
 
     labels = []
+    used = []  # <-- fix: track amplitude-label pairs for unknowns
     for p in peaks:
         # ---------- find neighbouring R’s to get current RR interval -----
         nearest_r_idx = np.argmin([abs(p - r) for r in r_peaks])
@@ -106,8 +124,17 @@ def assign_labels(signal: np.ndarray, peaks: List[int], fs: int = DEFAULT_FS):
         letter  = classify_peak(rel_pos, signal[p], global_max)
 
         if letter == "":
-            # Unknown → keep raw amplitude (so it shows in plots)
-            letter = f"{signal[p]:.2f}"
+            # Unknown → group similar amplitudes as same label
+            amp = signal[p]
+            found = False
+            for idx, (ref_amp, ref_label) in enumerate(used):
+                if abs(amp - ref_amp) < SIMILARITY_TOL:
+                    letter = ref_label
+                    found = True
+                    break
+            if not found:
+                letter = f"{amp:.2f}"
+                used.append((amp, letter))
 
         labels.append(f"{letter}{beat_no}")
 
